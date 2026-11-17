@@ -10,26 +10,37 @@ forecast Twitch concurrent viewers in the Grand Theft Auto VI category for hours
 
 ## main.py
 
-`q_tau(h) = p1 * exp(z_tau * (S0 + S1 * sqrt(h - 1)))`, rounded half up to 2 decimals,
-with `z = (-1.645, -0.674, 0, 0.674, 1.645)` and a band that depends on how big the launch
-is: `0.25/0.10` at 30,000 viewers and up, `0.40/0.20` from 5,000 to 30,000, `0.80/0.50`
-below that. Standard library only, Python 3.13 compatible, reads `MAKEFUN_INPUT_DIR` and
-writes `MAKEFUN_OUTPUT_DIR`.
+`q_tau(h) = p1 * c * exp(z_tau * (S0 + S1 * sqrt(h - 1)))`, rounded half up to 2 decimals,
+with `z = (-1.645, -0.674, 0, 0.674, 1.645)`, a band and a centre factor that depend on how
+big the launch is: `c=1.00, band 0.25/0.10` at 30,000 viewers and up, `c=1.50, 0.40/0.20`
+from 5,000 to 30,000, `c=2.00, 0.80/0.50` below that. Standard library only, Python 3.13
+compatible, reads `MAKEFUN_INPUT_DIR` and writes `MAKEFUN_OUTPUT_DIR`.
 
-The centre stays flat: hour 1's print for every hour. A cross-game median ratio curve
-loses on pinball loss at every pool size, because launch-day shapes differ more between
-games than a flat centre's error costs.
+Why the band widens: how much a band helps depends on how much hour 1 already tells you. Over
+the comparables the practice cases ship, the hour-24 / hour-1 ratio sits in 0.5–8 above
+30,000 viewers, reaches 2.4–7 between 5,000 and 30,000, and reaches 65–1,088 below 5,000 —
+the last of those is pre-launch noise, not a launch, and only a very wide band says so.
 
-Why three bands: how wide helps depends on how much hour 1 already tells you. Over the
-comparables the practice cases ship, the hour-24 / hour-1 ratio sits in 0.5–3 above 10,000
-viewers, reaches 5–8 between 1,000 and 10,000, and reaches 65–1,088 below 1,000 — the last
-of those is pre-launch noise, not a launch, and only a very wide band says so honestly.
-Scored through the entry's own .out files over all 37 comparables: **0.714627** against the
-house baseline's 0.929650; over the 28 at 10,000+ viewers, 0.332639 against 0.350833.
+Why the centre moves: the comparables' median lands at 0.72–0.88 of hour 1 between hours 2
+and 12 and 1.6–2.0 by prime time, and the smaller the launch the bigger the day's climb,
+because its hour 1 is mostly warm-up. One factor per bucket survives leave-one-out; the full
+23-hour median ratio curve does not — it cuts in-sample log error from 1.1421 to 1.0544 and
+still loses out of sample (0.790958 against 0.714627 for a flat centre with the same bands),
+which is why this ships one number per bucket and not a curve.
+
+Scored through the entry's own .out files over all 37 comparables: **0.639770** against the
+house baseline's 0.844342. Over the 23 at 30,000+ viewers, 0.291032 against 0.295274.
+
+The 30,000+ bucket keeps `c=1.00` on purpose: its fitted factor is 0.95 in sample, but
+refitting per fold moves it between 0.90 and 0.95 and the held-out loss gets worse, so the
+evidence there is nil. Bands past this point are noise too: refitting them per fold on the
+100,000+ and 30,000+ cohorts gives held-out losses at or above the shipped layout's
+(0.254651 and 0.291126 against 0.256925 and 0.291032).
 
 The cuts and bands were chosen by a leave-one-out over 10,000 layouts, and all 37 folds
-picked this layout (32 exactly, 5 with the upper cut at 60,000), which is why the fixed
-layout ships rather than per-fold refits — refitting scored worse out of sample (0.723024).
+picked this pair of cuts and these three bands (32 exactly, 5 with the upper cut at 60,000),
+which is why the fixed layout ships rather than per-fold refits — refitting scored worse out
+of sample (0.723024).
 
 ## Run it
 
@@ -64,18 +75,26 @@ or finds it beside the repository.
   zero), and a plateau-centre rule.
 - `tools/buckets.py`, `tools/cut_scan.py`, `tools/layout_loo.py` choose the cuts and the
   three bands, in process and through the entry's own arithmetic.
+- `tools/shape.py`, `tools/shape_fit.py` measure the real hourly shape and show the full
+  ratio curve overfits; `tools/centre_fit.py`, `tools/centre_sweep.py`,
+  `tools/bucket_factor.py`, `tools/centre_entry.py` choose the one centre factor per bucket
+  and check it leave-one-out.
 - `tools/losers.py` prints every comparable sorted by how much the shipped band costs
   against the house baseline, so a regression is one command away.
 
 ## Known limits
 
-- The gain is a mean, not a per-case promise: it beats the house baseline on 26 of 37
-  comparables overall, and loses by up to 0.016 on the ones whose audience barely moves all
+- The gain is a mean, not a per-case promise: it beats the house baseline on 24 of 37
+  comparables overall, and loses by up to 0.02 on the ones whose audience barely moves all
   day (Diablo IV, the Call of Duty launches, Final Fantasy VII Rebirth), where any band is
-  too wide. It wins big on the ones that multiply during the day.
-- The small bands are fitted on 3 and 6 comparables. They help a lot on the comparables that
-  are there (Silksong, Black Myth, Helldivers 2 all end 60–1,088x their hour 1) and should
-  not be read as more than that.
+  too wide and any centre factor is wrong. It wins big on the ones that multiply during the
+  day.
+- The centre factor is evidence only in the middle and small buckets. For a launch above
+  30,000 viewers — which is where GTA VI is expected — the factor is 1.00 and the model is
+  the band alone, because that bucket's fitted factor does not survive leave-one-out.
+- The small bucket's 2.00 is a bounded extrapolation, not a fit: all eight of its
+  comparables are pre-launch shapes, and the factor its grid reaches (8.0) is not credible
+  for a launch of any real size.
 - The final case has no history at all beyond hour 1, so nothing here consumes `history`,
   `streams` or `categories_hourly`; a model that reads them cannot be validated on a
   practice case that nulls them.

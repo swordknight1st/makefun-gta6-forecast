@@ -65,6 +65,21 @@ V0, V1 = 0.80, 0.50
 SMALL = 30_000
 MID = 5_000
 
+# The centre, as a factor on hour 1's print. A launch does not hold its hour-1 audience all
+# day. The comparables' median is 0.72-0.88 of it between hours 2 and 12 and 1.6-2.0 by
+# prime time, and the smaller the launch the bigger the day's climb, because hour 1 is then
+# mostly pre-launch warm-up. A full 23-hour ratio curve overfits (its leave-one-out loss is
+# worse than a flat centre's), but one factor per bucket survives: 1.50 for 5,000-30,000,
+# where all six leave-one-out folds pick the same value.
+#
+# The large bucket keeps 1.00: its fitted factor is 0.95 in sample, but refitting per fold
+# moves it between 0.90 and 0.95 and the held-out loss gets worse, so the evidence there is
+# nil and a factor would be a coin flip. The small bucket ships 2.00 rather than the 8.0 its
+# grid reaches: all eight of its comparables are pre-launch shapes (hour 24 is 65-1,088x
+# hour 1), none is stable, and a factor fitted to them says nothing about a launch of GTA
+# VI's size. 2.00 is the widest climb their median supports.
+C0, C1, C2 = 1.00, 1.50, 2.00
+
 # The contract's ceiling on any quantile (viewers).
 CAP = 1_000_000_000
 
@@ -83,21 +98,21 @@ def round2(x):
     return int(value) if value.is_integer() else value
 
 
-def band(p1):
-    """(S0, S1) for this case: the band for a launch of this size."""
+def level(p1):
+    """((S0, S1), centre factor) for a launch of this size."""
     if p1 >= SMALL:
-        return (S0, S1)
+        return (S0, S1), C0
     if p1 >= MID:
-        return (W0, W1)
-    return (V0, V1)
+        return (W0, W1), C1
+    return (V0, V1), C2
 
 
-def forecast_hour(p1, h, s0, s1):
+def forecast_hour(p1, h, s0, s1, centre=1.0):
     """The five quantiles of hour h, at the levels in LEVELS order."""
     sigma = s0 + s1 * math.sqrt(h - 1)
     row = []
     for z in Z:
-        q = p1 * math.exp(z * sigma)
+        q = p1 * centre * math.exp(z * sigma)
         if q < 1.0:
             q = 1.0
         elif q > CAP:
@@ -136,10 +151,10 @@ def forecast_case(case):
     if levels is not None and levels != LEVELS:
         raise ValueError("this case asks for levels %r, not %r" % (levels, LEVELS))
     p1 = first_hour(case)
-    s0, s1 = band(p1)
+    (s0, s1), centre = level(p1)
     # The contract wants hours 2..24 whether the case lists them or not: a .out short of a
     # row voids the case, and a voided case scores as if every quantile were p1.
-    hours = [{"hour": h, "q": forecast_hour(p1, h, s0, s1)} for h in range(2, 25)]
+    hours = [{"hour": h, "q": forecast_hour(p1, h, s0, s1, centre)} for h in range(2, 25)]
     return {"hours": hours}
 
 
