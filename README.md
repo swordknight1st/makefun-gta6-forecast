@@ -1,8 +1,12 @@
 # gta6 forecast: what is here and why
 
-The entry for make.fun's `gta6-twitch-ccu-forecast-01`: forecast Twitch concurrent viewers
-in the Grand Theft Auto VI category for hours 2..24 of 2026-11-19, as five quantiles an
-hour, from hour 1's print.
+[![make.fun · gta6-twitch-ccu-forecast-01](https://make.fun/badge/gta6-twitch-ccu-forecast-01.svg)](https://make.fun/bounty/gta6-twitch-ccu-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-twitch-ccu-forecast-01)
+[![rank](https://make.fun/badge/gta6-twitch-ccu-forecast-01/swordknight1st/makefun-gta6-forecast/rank.svg)](https://make.fun/bounty/gta6-twitch-ccu-forecast-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-twitch-ccu-forecast-01)
+[![reward](https://make.fun/badge/gta6-twitch-ccu-forecast-01/swordknight1st/makefun-gta6-forecast/reward.svg)](https://make.fun/bounty/gta6-twitch-ccu-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-twitch-ccu-forecast-01)
+
+The entry for make.fun's [GTA VI launch-day Twitch viewer bounty](https://make.fun/bounty/gta6-twitch-ccu-forecast-01):
+forecast Twitch concurrent viewers in the Grand Theft Auto VI category for hours 2..24 of
+2026-11-19, as five quantiles an hour, from hour 1's print.
 
 ## main.py
 
@@ -15,6 +19,17 @@ that. Standard library only, Python 3.13 compatible, reads `MAKEFUN_INPUT_DIR` a
 The centre stays flat: hour 1's print for every hour. A cross-game median ratio curve
 loses on pinball loss at every pool size, because launch-day shapes differ more between
 games than a flat centre's error costs.
+
+## Run it
+
+```
+export MAKEFUN_INPUT_DIR=<kit>/input
+export MAKEFUN_OUTPUT_DIR=out
+python3 -P -s main.py
+python3 tools/check_out.py out
+```
+
+Four practice files in, four .out files out, 23 rows each.
 
 ## tools/
 
@@ -37,20 +52,6 @@ All three are read-only and standard library only.
   1e9, non-decreasing, at most 65,536 bytes) and, with `--golden`, compares two runs
   byte for byte. Exit status 1 on any failure.
 
-## Reproducing a local run
-
-```
-export MAKEFUN_INPUT_DIR=<kit>/input
-export MAKEFUN_OUTPUT_DIR=out
-python3 -P -s main.py
-python3 tools/check_out.py out
-```
-
-Four practice files in, four .out files out, 23 rows each. The practice set ships no
-sealed answers in `input/`, so `tools/band_check.py` and `tools/small_check.py` score the
-comparables instead: they are this machine's only ground truth, and the same rule the
-competition grades by.
-
 ## Known limits
 
 - The 1.3% gain is small by construction: one band, chosen on 16 comparables. It is an
@@ -60,3 +61,5 @@ competition grades by.
   practice case that nulls them.
 - Rounding follows the starter's `round2` (half up on the scaled value), so every .out
   stays in the starter's number format.
+- Hours 2..24 are written whatever the case's forecast list holds: the contract wants 23
+  rows, and a .out short of one is scored as if every quantile were hour 1's print.
