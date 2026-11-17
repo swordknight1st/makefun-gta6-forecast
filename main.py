@@ -63,22 +63,33 @@ S0, S1 = 0.25, 0.10
 W0, W1 = 0.40, 0.20
 V0, V1 = 0.80, 0.50
 SMALL = 30_000
+BIG = 200_000
 MID = 5_000
 
 # The centre, as a factor on hour 1's print. A launch does not hold its hour-1 audience all
-# day. The comparables' median is 0.72-0.88 of it between hours 2 and 12 and 1.6-2.0 by
-# prime time, and the smaller the launch the bigger the day's climb, because hour 1 is then
-# mostly pre-launch warm-up. A full 23-hour ratio curve overfits (its leave-one-out loss is
-# worse than a flat centre's), but one factor per bucket survives: 1.50 for 5,000-30,000,
-# where all six leave-one-out folds pick the same value.
+# day, and which way it moves depends on its size.
 #
-# The large bucket keeps 1.00: its fitted factor is 0.95 in sample, but refitting per fold
-# moves it between 0.90 and 0.95 and the held-out loss gets worse, so the evidence there is
-# nil and a factor would be a coin flip. The small bucket ships 2.00 rather than the 8.0 its
-# grid reaches: all eight of its comparables are pre-launch shapes (hour 24 is 65-1,088x
-# hour 1), none is stable, and a factor fitted to them says nothing about a launch of GTA
-# VI's size. 2.00 is the widest climb their median supports.
-C0, C1, C2 = 1.00, 1.50, 2.00
+# Above 200,000 viewers the six comparables in that cohort fall to a median 0.52 of hour 1 by
+# hour 12 and only recover to 0.87 by hour 24: the biggest launches put everyone in front of
+# the stream at the unlock and then lose them to the game itself. Fitting one factor there
+# gives 0.75, chosen by 4 of 6 leave-one-out folds, and it beats a flat centre out of sample
+# (0.189659 against 0.220263). Grand Theft Auto VI is the largest launch in the set and a
+# single-player game, so it belongs to that cohort.
+#
+# The trend is measured, not assumed: over all 16 comparables above 100,000 viewers, the rank
+# correlation of log(viewers) with log(hour 24 / hour 1) is -0.638, permutation p=0.0094. The
+# cut is not sharp either: boundaries anywhere from 150,000 to 500,000 all fit 0.75-0.80, so
+# the regime does not depend on where exactly the line is drawn.
+#
+# 30,000-200,000 keeps 1.00: there the fitted factor is 1.00 too, and 12 of 18 folds pick it.
+# 5,000-30,000 ships 1.50 (all six folds) and under 5,000 ships 2.00, bounded below the 8.0
+# its grid reaches because all eight of those comparables are pre-launch shapes whose fit
+# says nothing about a real launch.
+#
+# A full 23-hour ratio curve is not used: it cuts in-sample log error from 1.1421 to 1.0544
+# and still loses out of sample (0.790958 against 0.714627 for one factor per bucket), so the
+# curve is fitting noise that one number per bucket does not.
+C3, C0, C1, C2 = 0.75, 1.00, 1.50, 2.00
 
 # The contract's ceiling on any quantile (viewers).
 CAP = 1_000_000_000
@@ -100,6 +111,8 @@ def round2(x):
 
 def level(p1):
     """((S0, S1), centre factor) for a launch of this size."""
+    if p1 >= BIG:
+        return (S0, S1), C3
     if p1 >= SMALL:
         return (S0, S1), C0
     if p1 >= MID:

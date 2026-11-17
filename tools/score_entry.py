@@ -16,6 +16,7 @@ Read-only on the repository: the temp input/output live under the system temp di
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -98,13 +99,23 @@ def run_entry(rows, band_override, scheme=None):
             s0, s1, cut = band_override
             cut1, cut2, a, w, v = cut, cut, (s0, s1), (s0, s1), (s0, s1)
         # Every band gets the override and every cut moves with it: leaving one band where it
-        # was made an arm of a comparison secretly score a different band.
+        # was made an arm of a comparison secretly score a different band. The cuts are matched
+        # by name and any number, so a later edit to their values cannot silently no-op this.
         for name, pair in (("S0, S1 =", a), ("W0, W1 =", w), ("V0, V1 =", v)):
             start = text.index(name)
             end = text.index("\n", start)
             text = text[:start] + "%s %.2f, %.2f" % (name, pair[0], pair[1]) + text[end:]
-        text = text.replace("SMALL = 10_000", "SMALL = %d" % max(cut1, cut2))
-        text = text.replace("MID = 1_000", "MID = %d" % min(cut1, cut2))
+        text, n1 = re.subn(r"^SMALL = [\d_]+$", "SMALL = %d" % max(cut1, cut2), text, flags=re.M)
+        text, n2 = re.subn(r"^BIG = [\d_]+$", "BIG = %d" % (10 ** 12), text, flags=re.M)
+        text, n3 = re.subn(r"^MID = [\d_]+$", "MID = %d" % min(cut1, cut2), text, flags=re.M)
+        # The centre factors move with the arm too: a "house baseline" that kept the shipped
+        # factors would be scoring a different model and flattering the comparison.
+        text, n4 = re.subn(r"^C[0-3], C0, C1, C2 = .*$", "C3, C0, C1, C2 = 1.00, 1.00, 1.00, 1.00",
+                           text, flags=re.M)
+        if n1 != 1 or n3 != 1 or n4 != 1:
+            shutil.rmtree(work, ignore_errors=True)
+            raise SystemExit("score_entry: could not substitute the model (SMALL %d, MID %d, BIG %d, C %d)"
+                             % (n1, n3, n2, n4))
         source = os.path.join(work, "main.py")
         open(source, "w", encoding="utf-8").write(text)
     for i, r in enumerate(rows):
