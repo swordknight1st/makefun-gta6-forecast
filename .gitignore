@@ -2,4 +2,5 @@ out/
 out-*/
 __pycache__/
 *.pyc
-bundle.tar.gz
+bundle*.tar.gz
+prompt*.txt

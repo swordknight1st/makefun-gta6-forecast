@@ -113,10 +113,9 @@ def forecast_case(case):
         raise ValueError("this case asks for levels %r, not %r" % (levels, LEVELS))
     p1 = first_hour(case)
     s0, s1 = band(p1)
-    wanted = [row.get("hour") for row in (case.get("forecast") or []) if row.get("hour")]
-    if not wanted:
-        wanted = list(range(2, 25))
-    hours = [{"hour": h, "q": forecast_hour(p1, h, s0, s1)} for h in sorted(set(wanted)) if 2 <= h <= 24]
+    # The contract wants hours 2..24 whether the case lists them or not: a .out short of a
+    # row voids the case, and a voided case scores as if every quantile were p1.
+    hours = [{"hour": h, "q": forecast_hour(p1, h, s0, s1)} for h in range(2, 25)]
     return {"hours": hours}
 
 
