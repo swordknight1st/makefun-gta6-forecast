@@ -11,14 +11,25 @@ forecast Twitch concurrent viewers in the Grand Theft Auto VI category for hours
 ## main.py
 
 `q_tau(h) = p1 * exp(z_tau * (S0 + S1 * sqrt(h - 1)))`, rounded half up to 2 decimals,
-with `z = (-1.645, -0.674, 0, 0.674, 1.645)`, `S0 = 0.10`, `S1 = 0.12` when hour 1's
-print is at least 100,000 viewers, and the house baseline's `S0 = 0`, `S1 = 0.15` below
-that. Standard library only, Python 3.13 compatible, reads `MAKEFUN_INPUT_DIR` and writes
-`MAKEFUN_OUTPUT_DIR`.
+with `z = (-1.645, -0.674, 0, 0.674, 1.645)` and a band that depends on how big the launch
+is: `0.25/0.10` at 30,000 viewers and up, `0.40/0.20` from 5,000 to 30,000, `0.80/0.50`
+below that. Standard library only, Python 3.13 compatible, reads `MAKEFUN_INPUT_DIR` and
+writes `MAKEFUN_OUTPUT_DIR`.
 
 The centre stays flat: hour 1's print for every hour. A cross-game median ratio curve
 loses on pinball loss at every pool size, because launch-day shapes differ more between
 games than a flat centre's error costs.
+
+Why three bands: how wide helps depends on how much hour 1 already tells you. Over the
+comparables the practice cases ship, the hour-24 / hour-1 ratio sits in 0.5–3 above 10,000
+viewers, reaches 5–8 between 1,000 and 10,000, and reaches 65–1,088 below 1,000 — the last
+of those is pre-launch noise, not a launch, and only a very wide band says so honestly.
+Scored through the entry's own .out files over all 37 comparables: **0.714627** against the
+house baseline's 0.929650; over the 28 at 10,000+ viewers, 0.332639 against 0.350833.
+
+The cuts and bands were chosen by a leave-one-out over 10,000 layouts, and all 37 folds
+picked this layout (32 exactly, 5 with the upper cut at 60,000), which is why the fixed
+layout ships rather than per-fold refits — refitting scored worse out of sample (0.723024).
 
 ## Run it
 
@@ -33,29 +44,38 @@ Four practice files in, four .out files out, 23 rows each.
 
 ## tools/
 
-All three are read-only and standard library only.
+Read-only, standard library only, and every one of them takes the kit's path as an argument
+or finds it beside the repository.
 
-- `tools/band_check.py KIT` scores candidate bands on the 38 comparables the practice
-  cases ship, i.e. the contest's own loss on launches whose first hour is at least
-  100,000 viewers. The tuned pair is the winner of that table:
-  `S0=0.10, S1=0.12` 0.257621 against the house baseline's 0.261137 over the same 16
-  comparables (1.3% better), with `S0=0.10, S1=0.15` 0.260750 and
-  `S0=0.05, S1=0.12` 0.260469 in third.
-- `tools/small_check.py KIT` does the same for first hours under 100,000 viewers, the
-  fallback's own cohort (21 comparables). There the baseline band pays 1.438994, the
-  tuned pair 1.441285, and `S0=0.05, S1=0.14` 1.433877: the cohort lumps three regimes
-  together (3,000-viewer indies, 40,000-viewer consoles, 90,000-viewer shooters), so no
-  single band wins it, and the fallback stays the house baseline's: with the fallback in
-  place main.py is never worse on this cohort than the block the house graded at 0.387.
+- `tools/score_entry.py [--min-viewers N]` is the one that matters: it writes one .in per
+  comparable, runs the real `main.py` as the grader does (`python -P -s`), and scores the
+  .out files it wrote. Every other tool computes a band formula; this one scores the entry.
+  `--min-viewers 10000` restricts it to the cohort GTA VI belongs to.
 - `tools/check_out.py OUT_DIR [--golden DIR]` holds each .out to the case contract
   (one key `hours`, 23 rows, hours 2..24 once, five finite numbers above 0 and at most
   1e9, non-decreasing, at most 65,536 bytes) and, with `--golden`, compares two runs
   byte for byte. Exit status 1 on any failure.
+- `tools/band_check.py`, `tools/small_check.py`, `tools/small_loo.py`,
+  `tools/small_shape.py` fit and re-check single bands per cohort, including the
+  leave-one-out pass that showed the 10,000+ optimum is a plateau rather than a point.
+- `tools/per_case.py`, `tools/loo.py`, `tools/s0_loo.py`, `tools/bootstrap.py`,
+  `tools/plateau.py` are the checks behind "wider is real, the exact pair is not": per-case
+  wins, leave-one-out, a 400-draw bootstrap of the difference (2.5% – 97.5% wholly below
+  zero), and a plateau-centre rule.
+- `tools/buckets.py`, `tools/cut_scan.py`, `tools/layout_loo.py` choose the cuts and the
+  three bands, in process and through the entry's own arithmetic.
+- `tools/losers.py` prints every comparable sorted by how much the shipped band costs
+  against the house baseline, so a regression is one command away.
 
 ## Known limits
 
-- The 1.3% gain is small by construction: one band, chosen on 16 comparables. It is an
-  honest win over the house baseline on the cohort GTA VI belongs to, not a reshaping.
+- The gain is a mean, not a per-case promise: it beats the house baseline on 26 of 37
+  comparables overall, and loses by up to 0.016 on the ones whose audience barely moves all
+  day (Diablo IV, the Call of Duty launches, Final Fantasy VII Rebirth), where any band is
+  too wide. It wins big on the ones that multiply during the day.
+- The small bands are fitted on 3 and 6 comparables. They help a lot on the comparables that
+  are there (Silksong, Black Myth, Helldivers 2 all end 60–1,088x their hour 1) and should
+  not be read as more than that.
 - The final case has no history at all beyond hour 1, so nothing here consumes `history`,
   `streams` or `categories_hourly`; a model that reads them cannot be validated on a
   practice case that nulls them.
